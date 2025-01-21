@@ -1,0 +1,98 @@
+Simple DWG File Viewer
+Preview
+Code
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Simple DWG Viewer</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            text-align: center;
+        }
+        .upload-container {
+            border: 2px dashed #ccc;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 10px;
+            cursor: pointer;
+        }
+        .upload-container:hover {
+            background-color: #f8f8f8;
+        }
+        #viewer {
+            width: 100%;
+            height: 500px;
+            border: 1px solid #ccc;
+            margin-top: 20px;
+        }
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <h1>Simple DWG Viewer</h1>
+    
+    <div class="upload-container" id="dropZone">
+        <h3>Drag & Drop your DWG file here</h3>
+        <p>or</p>
+        <input type="file" id="fileInput" accept=".dwg" />
+    </div>
+
+    <div id="viewer"></div>
+
+    <script>
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const viewer = document.getElementById('viewer');
+
+        // Handle file selection
+        fileInput.addEventListener('change', handleFile);
+
+        // Handle drag and drop
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.style.backgroundColor = '#f0f0f0';
+        });
+
+        dropZone.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            dropZone.style.backgroundColor = '';
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.style.backgroundColor = '';
+            
+            if (e.dataTransfer.files.length) {
+                handleFile({ target: { files: e.dataTransfer.files } });
+            }
+        });
+
+        function handleFile(event) {
+            const file = event.target.files[0];
+            if (file && file.name.toLowerCase().endsWith('.dwg')) {
+                // Here we would normally process the DWG file
+                viewer.innerHTML = `<p>Selected file: ${file.name}</p>`;
+                
+                // For now, we'll show a message about DWG processing
+                viewer.innerHTML += `
+                    <p>To fully implement DWG viewing, we'll need to:</p>
+                    <ol style="text-align: left;">
+                        <li>Add a DWG parsing library</li>
+                        <li>Convert the DWG data to a viewable format</li>
+                        <li>Display the content in the viewer</li>
+                    </ol>
+                `;
+            } else {
+                alert('Please select a valid DWG file');
+            }
+        }
+    </script>
+</body>
+</html>
