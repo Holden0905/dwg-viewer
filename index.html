@@ -1,11 +1,10 @@
-Simple DWG File Viewer
-Preview
-Code
-
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Simple DWG Viewer</title>
+    <title>DWG Viewer</title>
+    <!-- Add AutoCAD Viewer library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/OpenHPS/openhps-web@master/dist/openhps-web.min.js"></script>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -29,6 +28,29 @@ Code
             height: 500px;
             border: 1px solid #ccc;
             margin-top: 20px;
+            position: relative;
+        }
+        .loading {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(255, 255, 255, 0.9);
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        .controls {
+            margin: 10px 0;
+            padding: 10px;
+            background: #f5f5f5;
+            border-radius: 5px;
+        }
+        button {
+            padding: 5px 10px;
+            margin: 0 5px;
+            cursor: pointer;
         }
         .hidden {
             display: none;
@@ -36,7 +58,7 @@ Code
     </style>
 </head>
 <body>
-    <h1>Simple DWG Viewer</h1>
+    <h1>DWG Viewer</h1>
     
     <div class="upload-container" id="dropZone">
         <h3>Drag & Drop your DWG file here</h3>
@@ -44,12 +66,24 @@ Code
         <input type="file" id="fileInput" accept=".dwg" />
     </div>
 
-    <div id="viewer"></div>
+    <div class="controls hidden" id="controls">
+        <button onclick="zoomIn()">Zoom In</button>
+        <button onclick="zoomOut()">Zoom Out</button>
+        <button onclick="resetView()">Reset View</button>
+    </div>
+
+    <div id="viewer">
+        <div class="loading" id="loading">Loading DWG file...</div>
+    </div>
 
     <script>
         const dropZone = document.getElementById('dropZone');
         const fileInput = document.getElementById('fileInput');
         const viewer = document.getElementById('viewer');
+        const loading = document.getElementById('loading');
+        const controls = document.getElementById('controls');
+        
+        let viewerInstance = null;
 
         // Handle file selection
         fileInput.addEventListener('change', handleFile);
@@ -77,20 +111,61 @@ Code
         function handleFile(event) {
             const file = event.target.files[0];
             if (file && file.name.toLowerCase().endsWith('.dwg')) {
-                // Here we would normally process the DWG file
-                viewer.innerHTML = `<p>Selected file: ${file.name}</p>`;
+                loading.style.display = 'block';
+                controls.classList.remove('hidden');
                 
-                // For now, we'll show a message about DWG processing
-                viewer.innerHTML += `
-                    <p>To fully implement DWG viewing, we'll need to:</p>
-                    <ol style="text-align: left;">
-                        <li>Add a DWG parsing library</li>
-                        <li>Convert the DWG data to a viewable format</li>
-                        <li>Display the content in the viewer</li>
-                    </ol>
-                `;
+                // Create a FileReader to read the file
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    // Initialize the viewer with the file data
+                    initializeViewer(e.target.result);
+                };
+                reader.readAsArrayBuffer(file);
             } else {
                 alert('Please select a valid DWG file');
+            }
+        }
+
+        function initializeViewer(fileData) {
+            try {
+                // Initialize OpenHPS viewer
+                const viewer = new OpenHPS.Viewer({
+                    container: 'viewer',
+                    data: fileData
+                });
+                
+                viewerInstance = viewer;
+                loading.style.display = 'none';
+            } catch (error) {
+                console.error('Error loading DWG:', error);
+                loading.style.display = 'none';
+                viewer.innerHTML = `
+                    <p>Error loading DWG file. For full DWG support, you may need to:</p>
+                    <ol style="text-align: left;">
+                        <li>Convert the DWG to a different format (like DXF)</li>
+                        <li>Use a commercial DWG viewer library</li>
+                        <li>Ensure the DWG file is not corrupted</li>
+                    </ol>
+                `;
+            }
+        }
+
+        // Zoom controls
+        function zoomIn() {
+            if (viewerInstance) {
+                viewerInstance.zoom(1.2);
+            }
+        }
+
+        function zoomOut() {
+            if (viewerInstance) {
+                viewerInstance.zoom(0.8);
+            }
+        }
+
+        function resetView() {
+            if (viewerInstance) {
+                viewerInstance.reset();
             }
         }
     </script>
