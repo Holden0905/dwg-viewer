@@ -4,7 +4,7 @@
     <title>CAD File Viewer</title>
     <!-- Add required libraries -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/dxf-parser@1.1.2/browser.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dxf-parser/dist/dxf-parser.js"></script>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -89,6 +89,13 @@
         };
         const status = document.getElementById('status');
         
+        // Wait for DXF parser to load
+        window.onload = function() {
+            if (typeof DxfParser === 'undefined') {
+                status.textContent = "Error: Could not load DXF parser library. Please refresh the page.";
+            }
+        };
+
         function initViewer() {
             const container = document.getElementById('viewer');
             
@@ -135,7 +142,7 @@
             status.textContent = "Parsing DXF file...";
             
             try {
-                const parser = new DXFParser();
+                const parser = new DxfParser();  // Changed from DXFParser to DxfParser
                 const dxf = parser.parseSync(fileContent);
                 
                 // Clear existing content
