@@ -1,8 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>DWG Viewer</title>
-    <!-- Add AutoCAD Viewer library -->
+    <title>CAD File Viewer</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
     <script src="https://cdn.jsdelivr.net/gh/OpenHPS/openhps-web@master/dist/openhps-web.min.js"></script>
     <style>
@@ -58,12 +57,12 @@
     </style>
 </head>
 <body>
-    <h1>DWG Viewer</h1>
+    <h1>CAD File Viewer</h1>
     
     <div class="upload-container" id="dropZone">
-        <h3>Drag & Drop your DWG file here</h3>
+        <h3>Drag & Drop your DWG or DXF file here</h3>
         <p>or</p>
-        <input type="file" id="fileInput" accept=".dwg" />
+        <input type="file" id="fileInput" accept=".dwg,.dxf" />
     </div>
 
     <div class="controls hidden" id="controls">
@@ -73,7 +72,7 @@
     </div>
 
     <div id="viewer">
-        <div class="loading" id="loading">Loading DWG file...</div>
+        <div class="loading" id="loading">Loading CAD file...</div>
     </div>
 
     <script>
@@ -110,7 +109,8 @@
 
         function handleFile(event) {
             const file = event.target.files[0];
-            if (file && file.name.toLowerCase().endsWith('.dwg')) {
+            const fileName = file.name.toLowerCase();
+            if (file && (fileName.endsWith('.dwg') || fileName.endsWith('.dxf'))) {
                 loading.style.display = 'block';
                 controls.classList.remove('hidden');
                 
@@ -122,7 +122,7 @@
                 };
                 reader.readAsArrayBuffer(file);
             } else {
-                alert('Please select a valid DWG file');
+                alert('Please select a valid DWG or DXF file');
             }
         }
 
@@ -137,15 +137,16 @@
                 viewerInstance = viewer;
                 loading.style.display = 'none';
             } catch (error) {
-                console.error('Error loading DWG:', error);
+                console.error('Error loading file:', error);
                 loading.style.display = 'none';
                 viewer.innerHTML = `
-                    <p>Error loading DWG file. For full DWG support, you may need to:</p>
+                    <p>Error loading CAD file. This could be because:</p>
                     <ol style="text-align: left;">
-                        <li>Convert the DWG to a different format (like DXF)</li>
-                        <li>Use a commercial DWG viewer library</li>
-                        <li>Ensure the DWG file is not corrupted</li>
+                        <li>The file might be corrupted</li>
+                        <li>The file format version might not be supported</li>
+                        <li>The file might be too complex for the viewer</li>
                     </ol>
+                    <p>Try with a simpler or different CAD file.</p>
                 `;
             }
         }
