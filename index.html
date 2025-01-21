@@ -2,13 +2,13 @@
 <html>
 <head>
     <title>CAD File Viewer</title>
-    <!-- Add CAD Viewer library -->
+    <!-- Add required libraries -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@jscad/modeling@2.11.0/dist/jscad-modeling.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dxf-parser@1.1.2/browser.min.js"></script>
     <style>
         body {
             font-family: Arial, sans-serif;
-            max-width: 800px;
+            max-width: 1200px;
             margin: 0 auto;
             padding: 20px;
             text-align: center;
@@ -25,7 +25,7 @@
         }
         #viewer {
             width: 100%;
-            height: 500px;
+            height: 600px;
             border: 1px solid #ccc;
             margin-top: 20px;
             position: relative;
@@ -43,9 +43,16 @@
             border-radius: 5px;
         }
         button {
-            padding: 5px 10px;
+            padding: 8px 15px;
             margin: 0 5px;
             cursor: pointer;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+        }
+        button:hover {
+            background-color: #45a049;
         }
     </style>
 </head>
@@ -64,79 +71,193 @@
         <button onclick="zoomIn()">Zoom In</button>
         <button onclick="zoomOut()">Zoom Out</button>
         <button onclick="resetView()">Reset View</button>
+        <button onclick="panLeft()">Pan Left</button>
+        <button onclick="panRight()">Pan Right</button>
+        <button onclick="panUp()">Pan Up</button>
+        <button onclick="panDown()">Pan Down</button>
     </div>
 
     <div id="viewer"></div>
 
     <script>
-        let viewer = null;
+        let viewer = {
+            scene: null,
+            camera: null,
+            renderer: null,
+            controls: null,
+            entities: []
+        };
         const status = document.getElementById('status');
         
-        // Initialize Three.js viewer
         function initViewer() {
             const container = document.getElementById('viewer');
-            const scene = new THREE.Scene();
-            const camera = new THREE.PerspectiveCamera(75, container.clientWidth / container.clientHeight, 0.1, 1000);
-            const renderer = new THREE.WebGLRenderer();
             
-            renderer.setSize(container.clientWidth, container.clientHeight);
-            container.appendChild(renderer.domElement);
+            // Scene setup
+            viewer.scene = new THREE.Scene();
+            viewer.scene.background = new THREE.Color(0xf0f0f0);
             
-            camera.position.z = 5;
+            // Camera setup
+            viewer.camera = new THREE.OrthographicCamera(
+                container.clientWidth / -2,
+                container.clientWidth / 2,
+                container.clientHeight / 2,
+                container.clientHeight / -2,
+                1,
+                1000
+            );
+            viewer.camera.position.z = 100;
             
-            viewer = {
-                scene: scene,
-                camera: camera,
-                renderer: renderer
-            };
+            // Renderer setup
+            viewer.renderer = new THREE.WebGLRenderer({ antialias: true });
+            viewer.renderer.setSize(container.clientWidth, container.clientHeight);
+            container.appendChild(viewer.renderer.domElement);
+            
+            // Add ambient light
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+            viewer.scene.add(ambientLight);
+            
+            // Add directional light
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
+            directionalLight.position.set(0, 1, 1);
+            viewer.scene.add(directionalLight);
             
             animate();
         }
 
         function animate() {
             requestAnimationFrame(animate);
-            if (viewer) {
+            if (viewer.renderer) {
                 viewer.renderer.render(viewer.scene, viewer.camera);
             }
         }
 
-        // Handle file upload
+        function loadDXF(fileContent) {
+            status.textContent = "Parsing DXF file...";
+            
+            try {
+                const parser = new DXFParser();
+                const dxf = parser.parseSync(fileContent);
+                
+                // Clear existing content
+                while(viewer.scene.children.length > 0) { 
+                    viewer.scene.remove(viewer.scene.children[0]); 
+                }
+                
+                // Create material for lines
+                const material = new THREE.LineBasicMaterial({ 
+                    color: 0x000000,
+                    linewidth: 1
+                });
+                
+                // Parse entities
+                dxf.entities.forEach(entity => {
+                    if (entity.type === 'LINE') {
+                        const geometry = new THREE.BufferGeometry();
+                        const vertices = new Float32Array([
+                            entity.vertices[0].x, entity.vertices[0].y, entity.vertices[0].z || 0,
+                            entity.vertices[1].x, entity.vertices[1].y, entity.vertices[1].z || 0
+                        ]);
+                        geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+                        const line = new THREE.Line(geometry, material);
+                        viewer.scene.add(line);
+                        viewer.entities.push(line);
+                    }
+                    // Add support for other entity types as needed
+                });
+                
+                // Center and zoom to fit
+                centerAndZoomToFit();
+                status.textContent = "File loaded successfully!";
+                
+            } catch (error) {
+                status.textContent = "Error parsing DXF: " + error.message;
+                console.error(error);
+            }
+        }
+
+        function centerAndZoomToFit() {
+            if (viewer.entities.length === 0) return;
+            
+            const box = new THREE.Box3();
+            viewer.entities.forEach(entity => {
+                box.expandByObject(entity);
+            });
+            
+            const center = box.getCenter(new THREE.Vector3());
+            const size = box.getSize(new THREE.Vector3());
+            
+            const maxDim = Math.max(size.x, size.y);
+            const zoom = Math.min(
+                viewer.renderer.domElement.width / maxDim,
+                viewer.renderer.domElement.height / maxDim
+            ) * 0.8;
+            
+            viewer.camera.left = -viewer.renderer.domElement.width / (2 * zoom);
+            viewer.camera.right = viewer.renderer.domElement.width / (2 * zoom);
+            viewer.camera.top = viewer.renderer.domElement.height / (2 * zoom);
+            viewer.camera.bottom = -viewer.renderer.domElement.height / (2 * zoom);
+            
+            viewer.camera.position.x = center.x;
+            viewer.camera.position.y = center.y;
+            viewer.camera.updateProjectionMatrix();
+        }
+
+        // File handling
         document.getElementById('fileInput').addEventListener('change', function(event) {
             const file = event.target.files[0];
-            if (file) {
+            if (file && file.name.toLowerCase().endsWith('.dxf')) {
                 const reader = new FileReader();
                 reader.onload = function(e) {
-                    try {
-                        status.textContent = "Loading file...";
-                        loadDXF(e.target.result);
-                    } catch (error) {
-                        status.textContent = "Error loading file: " + error.message;
-                    }
+                    loadDXF(e.target.result);
                 };
                 reader.readAsText(file);
+            } else {
+                status.textContent = "Please select a valid DXF file";
             }
         });
 
-        // Initialize viewer on page load
-        initViewer();
-
-        // Basic controls
+        // Controls
         function zoomIn() {
-            if (viewer) {
-                viewer.camera.position.z *= 0.9;
+            if (viewer.camera) {
+                viewer.camera.zoom *= 1.2;
+                viewer.camera.updateProjectionMatrix();
             }
         }
 
         function zoomOut() {
-            if (viewer) {
-                viewer.camera.position.z *= 1.1;
+            if (viewer.camera) {
+                viewer.camera.zoom /= 1.2;
+                viewer.camera.updateProjectionMatrix();
             }
         }
 
         function resetView() {
-            if (viewer) {
-                viewer.camera.position.set(0, 0, 5);
-                viewer.camera.lookAt(0, 0, 0);
+            if (viewer.camera) {
+                centerAndZoomToFit();
+            }
+        }
+
+        function panLeft() {
+            if (viewer.camera) {
+                viewer.camera.position.x -= 50 / viewer.camera.zoom;
+            }
+        }
+
+        function panRight() {
+            if (viewer.camera) {
+                viewer.camera.position.x += 50 / viewer.camera.zoom;
+            }
+        }
+
+        function panUp() {
+            if (viewer.camera) {
+                viewer.camera.position.y += 50 / viewer.camera.zoom;
+            }
+        }
+
+        function panDown() {
+            if (viewer.camera) {
+                viewer.camera.position.y -= 50 / viewer.camera.zoom;
             }
         }
 
@@ -161,12 +282,7 @@
             if (file && file.name.toLowerCase().endsWith('.dxf')) {
                 const reader = new FileReader();
                 reader.onload = function(e) {
-                    try {
-                        status.textContent = "Loading file...";
-                        loadDXF(e.target.result);
-                    } catch (error) {
-                        status.textContent = "Error loading file: " + error.message;
-                    }
+                    loadDXF(e.target.result);
                 };
                 reader.readAsText(file);
             } else {
@@ -174,28 +290,8 @@
             }
         });
 
-        function loadDXF(fileContent) {
-            // Here we would parse the DXF file and create Three.js geometries
-            status.textContent = "DXF file loaded! Parsing content...";
-            
-            // Basic parsing and display
-            try {
-                // Create a simple visualization for now
-                const geometry = new THREE.BoxGeometry();
-                const material = new THREE.MeshBasicMaterial({ color: 0x00ff00, wireframe: true });
-                const cube = new THREE.Mesh(geometry, material);
-                
-                // Clear existing content
-                while(viewer.scene.children.length > 0) { 
-                    viewer.scene.remove(viewer.scene.children[0]); 
-                }
-                
-                viewer.scene.add(cube);
-                status.textContent = "File loaded successfully!";
-            } catch (error) {
-                status.textContent = "Error parsing DXF: " + error.message;
-            }
-        }
+        // Initialize viewer on page load
+        initViewer();
     </script>
 </body>
 </html>
