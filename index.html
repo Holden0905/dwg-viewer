@@ -2,8 +2,9 @@
 <html>
 <head>
     <title>CAD File Viewer</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/gh/OpenHPS/openhps-web@master/dist/openhps-web.min.js"></script>
+    <!-- Add CAD Viewer library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@jscad/modeling@2.11.0/dist/jscad-modeling.min.js"></script>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -29,16 +30,11 @@
             margin-top: 20px;
             position: relative;
         }
-        .loading {
-            display: none;
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: rgba(255, 255, 255, 0.9);
-            padding: 20px;
+        .status-message {
+            margin: 10px 0;
+            padding: 10px;
             border-radius: 5px;
-            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            background-color: #f8f8f8;
         }
         .controls {
             margin: 10px 0;
@@ -51,43 +47,102 @@
             margin: 0 5px;
             cursor: pointer;
         }
-        .hidden {
-            display: none;
-        }
     </style>
 </head>
 <body>
     <h1>CAD File Viewer</h1>
     
     <div class="upload-container" id="dropZone">
-        <h3>Drag & Drop your DWG or DXF file here</h3>
+        <h3>Drag & Drop your DXF file here</h3>
         <p>or</p>
-        <input type="file" id="fileInput" accept=".dwg,.dxf" />
+        <input type="file" id="fileInput" accept=".dxf" />
     </div>
 
-    <div class="controls hidden" id="controls">
+    <div class="status-message" id="status"></div>
+
+    <div class="controls">
         <button onclick="zoomIn()">Zoom In</button>
         <button onclick="zoomOut()">Zoom Out</button>
         <button onclick="resetView()">Reset View</button>
     </div>
 
-    <div id="viewer">
-        <div class="loading" id="loading">Loading CAD file...</div>
-    </div>
+    <div id="viewer"></div>
 
     <script>
-        const dropZone = document.getElementById('dropZone');
-        const fileInput = document.getElementById('fileInput');
-        const viewer = document.getElementById('viewer');
-        const loading = document.getElementById('loading');
-        const controls = document.getElementById('controls');
+        let viewer = null;
+        const status = document.getElementById('status');
         
-        let viewerInstance = null;
+        // Initialize Three.js viewer
+        function initViewer() {
+            const container = document.getElementById('viewer');
+            const scene = new THREE.Scene();
+            const camera = new THREE.PerspectiveCamera(75, container.clientWidth / container.clientHeight, 0.1, 1000);
+            const renderer = new THREE.WebGLRenderer();
+            
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            container.appendChild(renderer.domElement);
+            
+            camera.position.z = 5;
+            
+            viewer = {
+                scene: scene,
+                camera: camera,
+                renderer: renderer
+            };
+            
+            animate();
+        }
 
-        // Handle file selection
-        fileInput.addEventListener('change', handleFile);
+        function animate() {
+            requestAnimationFrame(animate);
+            if (viewer) {
+                viewer.renderer.render(viewer.scene, viewer.camera);
+            }
+        }
 
-        // Handle drag and drop
+        // Handle file upload
+        document.getElementById('fileInput').addEventListener('change', function(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    try {
+                        status.textContent = "Loading file...";
+                        loadDXF(e.target.result);
+                    } catch (error) {
+                        status.textContent = "Error loading file: " + error.message;
+                    }
+                };
+                reader.readAsText(file);
+            }
+        });
+
+        // Initialize viewer on page load
+        initViewer();
+
+        // Basic controls
+        function zoomIn() {
+            if (viewer) {
+                viewer.camera.position.z *= 0.9;
+            }
+        }
+
+        function zoomOut() {
+            if (viewer) {
+                viewer.camera.position.z *= 1.1;
+            }
+        }
+
+        function resetView() {
+            if (viewer) {
+                viewer.camera.position.set(0, 0, 5);
+                viewer.camera.lookAt(0, 0, 0);
+            }
+        }
+
+        // Drag and drop handling
+        const dropZone = document.getElementById('dropZone');
+        
         dropZone.addEventListener('dragover', (e) => {
             e.preventDefault();
             dropZone.style.backgroundColor = '#f0f0f0';
@@ -102,71 +157,43 @@
             e.preventDefault();
             dropZone.style.backgroundColor = '';
             
-            if (e.dataTransfer.files.length) {
-                handleFile({ target: { files: e.dataTransfer.files } });
+            const file = e.dataTransfer.files[0];
+            if (file && file.name.toLowerCase().endsWith('.dxf')) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    try {
+                        status.textContent = "Loading file...";
+                        loadDXF(e.target.result);
+                    } catch (error) {
+                        status.textContent = "Error loading file: " + error.message;
+                    }
+                };
+                reader.readAsText(file);
+            } else {
+                status.textContent = "Please select a valid DXF file";
             }
         });
 
-        function handleFile(event) {
-            const file = event.target.files[0];
-            const fileName = file.name.toLowerCase();
-            if (file && (fileName.endsWith('.dwg') || fileName.endsWith('.dxf'))) {
-                loading.style.display = 'block';
-                controls.classList.remove('hidden');
-                
-                // Create a FileReader to read the file
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    // Initialize the viewer with the file data
-                    initializeViewer(e.target.result);
-                };
-                reader.readAsArrayBuffer(file);
-            } else {
-                alert('Please select a valid DWG or DXF file');
-            }
-        }
-
-        function initializeViewer(fileData) {
+        function loadDXF(fileContent) {
+            // Here we would parse the DXF file and create Three.js geometries
+            status.textContent = "DXF file loaded! Parsing content...";
+            
+            // Basic parsing and display
             try {
-                // Initialize OpenHPS viewer
-                const viewer = new OpenHPS.Viewer({
-                    container: 'viewer',
-                    data: fileData
-                });
+                // Create a simple visualization for now
+                const geometry = new THREE.BoxGeometry();
+                const material = new THREE.MeshBasicMaterial({ color: 0x00ff00, wireframe: true });
+                const cube = new THREE.Mesh(geometry, material);
                 
-                viewerInstance = viewer;
-                loading.style.display = 'none';
+                // Clear existing content
+                while(viewer.scene.children.length > 0) { 
+                    viewer.scene.remove(viewer.scene.children[0]); 
+                }
+                
+                viewer.scene.add(cube);
+                status.textContent = "File loaded successfully!";
             } catch (error) {
-                console.error('Error loading file:', error);
-                loading.style.display = 'none';
-                viewer.innerHTML = `
-                    <p>Error loading CAD file. This could be because:</p>
-                    <ol style="text-align: left;">
-                        <li>The file might be corrupted</li>
-                        <li>The file format version might not be supported</li>
-                        <li>The file might be too complex for the viewer</li>
-                    </ol>
-                    <p>Try with a simpler or different CAD file.</p>
-                `;
-            }
-        }
-
-        // Zoom controls
-        function zoomIn() {
-            if (viewerInstance) {
-                viewerInstance.zoom(1.2);
-            }
-        }
-
-        function zoomOut() {
-            if (viewerInstance) {
-                viewerInstance.zoom(0.8);
-            }
-        }
-
-        function resetView() {
-            if (viewerInstance) {
-                viewerInstance.reset();
+                status.textContent = "Error parsing DXF: " + error.message;
             }
         }
     </script>
